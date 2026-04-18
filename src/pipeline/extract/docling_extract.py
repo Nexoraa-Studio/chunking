@@ -19,11 +19,33 @@ from src.pipeline.utils import paths
 from src.pipeline.utils.io import write_json, write_jsonl
 
 
+def _resolve(obj, name: str, default=None):
+    """Read obj.name. If the attribute turns out to be a bound method (docling
+    changed some previously-property fields to methods across PDF variants),
+    call it. Always returns a JSON-friendly value."""
+    v = getattr(obj, name, default)
+    if callable(v) and not isinstance(v, type):
+        try:
+            v = v()
+        except Exception:
+            v = default
+    return v
+
+
+def _to_int(v, default=None):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
 def _element_records(doc) -> list[dict]:
     """Walk docling document and emit a flat sequence of element dicts.
 
     docling's DoclingDocument exposes .iterate_items() yielding (item, level).
     Item subclasses include TextItem, SectionHeaderItem, TableItem, ListItem, PictureItem.
+    Some docling releases expose `text` / `page_no` as methods; _resolve coerces
+    those to values defensively.
     """
     records: list[dict] = []
     current_heading: str | None = None
@@ -31,11 +53,12 @@ def _element_records(doc) -> list[dict]:
 
     for idx, (item, level) in enumerate(doc.iterate_items()):
         cls = item.__class__.__name__
+
         page = None
         prov = getattr(item, "prov", None)
         if prov:
             try:
-                page = prov[0].page_no
+                page = _to_int(_resolve(prov[0], "page_no"))
             except Exception:
                 page = None
 
@@ -43,32 +66,38 @@ def _element_records(doc) -> list[dict]:
             "idx": idx,
             "page": page,
             "type": cls,
-            "level": level,
+            "level": _to_int(level) if level is not None else None,
             "parent_heading": current_heading,
         }
 
         if cls == "SectionHeaderItem":
-            text = getattr(item, "text", "") or ""
-            rec["text"] = text
-            rec["heading_level"] = getattr(item, "level", level)
-            current_heading = text
+            text = _resolve(item, "text", "") or ""
+            rec["text"] = str(text)
+            rec["heading_level"] = _to_int(_resolve(item, "level", level), default=level)
+            current_heading = rec["text"]
             current_heading_level = rec["heading_level"]
         elif cls in ("TextItem", "ListItem"):
-            rec["text"] = getattr(item, "text", "") or ""
+            rec["text"] = str(_resolve(item, "text", "") or "")
         elif cls == "TableItem":
             try:
-                rec["text"] = item.export_to_markdown()
+                md = item.export_to_markdown(doc=doc)
+            except TypeError:
+                try:
+                    md = item.export_to_markdown()
+                except Exception:
+                    md = ""
             except Exception:
-                rec["text"] = ""
+                md = ""
+            rec["text"] = str(md or "")
             try:
-                rec["n_rows"] = item.data.num_rows
-                rec["n_cols"] = item.data.num_cols
+                rec["n_rows"] = _to_int(_resolve(item.data, "num_rows"))
+                rec["n_cols"] = _to_int(_resolve(item.data, "num_cols"))
             except Exception:
                 pass
         elif cls == "PictureItem":
-            rec["text"] = getattr(item, "caption_text", "") or ""
+            rec["text"] = str(_resolve(item, "caption_text", "") or "")
         else:
-            rec["text"] = getattr(item, "text", "") or ""
+            rec["text"] = str(_resolve(item, "text", "") or "")
 
         records.append(rec)
     return records
