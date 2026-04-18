@@ -500,21 +500,31 @@ class Handler(BaseHTTPRequestHandler):
 
         def worker():
             import subprocess
-            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-            with LOG_FILE.open("a", encoding="utf-8") as logf:
-                logf.write(f"\n[run] triggered at {time.ctime()} pdf={pdfs[0].name}\n")
-                logf.flush()
-                proc = subprocess.Popen(
-                    [sys.executable, "-u", str(ROOT / "run_pipeline.py")],
-                    stdout=logf, stderr=subprocess.STDOUT, cwd=str(ROOT),
-                )
-                rc = proc.wait()
-            with _run_lock:
-                _run_state.update({
-                    "status": "done" if rc == 0 else "error",
-                    "message": f"exit {rc}",
-                    "finished_at": time.time(),
-                })
+            rc = -1
+            err_msg = ""
+            try:
+                LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+                with LOG_FILE.open("a", encoding="utf-8") as logf:
+                    logf.write(f"\n[run] triggered at {time.ctime()} pdf={pdfs[0].name}\n")
+                    logf.flush()
+                    proc = subprocess.Popen(
+                        [sys.executable, "-u", str(ROOT / "run_pipeline.py")],
+                        stdout=logf, stderr=subprocess.STDOUT, cwd=str(ROOT),
+                    )
+                    rc = proc.wait()
+            except Exception as e:
+                err_msg = f"{type(e).__name__}: {e}"
+            finally:
+                with _run_lock:
+                    if err_msg:
+                        _run_state.update({"status": "error", "message": err_msg,
+                                           "finished_at": time.time()})
+                    else:
+                        _run_state.update({
+                            "status": "done" if rc == 0 else "error",
+                            "message": f"exit {rc}",
+                            "finished_at": time.time(),
+                        })
 
         threading.Thread(target=worker, daemon=True).start()
         self._send_json({"ok": True, "state": dict(_run_state)})

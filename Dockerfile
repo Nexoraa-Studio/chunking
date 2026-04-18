@@ -14,12 +14,19 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download the small models that would otherwise block first request.
-# Docling's layout models are ~500 MB and download lazily on first PDF; we
-# skip baking them so the image stays under ~2.5 GB.
+# Pre-download all models into the HF cache inside the image so new container
+# starts don't pay a 30-60s download on their first PDF upload.
+# Pass HF_TOKEN at build time to avoid HuggingFace unauthenticated rate limits:
+#   docker buildx build --build-arg HF_TOKEN=$HF_TOKEN ...
+# A mirror copy is also stored in
+# s3://chunking-models-902451183446-apsouth1/huggingface/ (ap-south-1) in case
+# we need to rebuild without HuggingFace (e.g. if HF goes down).
+ARG HF_TOKEN=""
+ENV HF_TOKEN=${HF_TOKEN}
 RUN python -c "from sentence_transformers import SentenceTransformer; \
                SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')" \
- && python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True)"
+ && python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True)" \
+ && docling-tools models download
 
 COPY src/ ./src/
 COPY run_pipeline.py .
