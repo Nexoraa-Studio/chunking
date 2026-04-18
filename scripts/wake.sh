@@ -52,7 +52,7 @@ aws ecs create-express-gateway-service \
   --execution-role-arn "arn:aws:iam::${ACCT}:role/ecsTaskExecutionRole" \
   --infrastructure-role-arn "arn:aws:iam::${ACCT}:role/ecsExpressInfrastructureRole" \
   --primary-container "file://$PRIMARY" \
-  --cpu 1024 --memory 2048 \
+  --cpu 1024 --memory 4096 \
   --health-check-path / \
   --scaling-target "file://$SCALE" \
   --tags 'key=Project,value=chunking' 'key=WokeBy,value=scripts-wake-sh' \
