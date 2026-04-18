@@ -26,7 +26,9 @@ ENV HF_TOKEN=${HF_TOKEN}
 RUN python -c "from sentence_transformers import SentenceTransformer; \
                SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')" \
  && python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True)" \
- && docling-tools models download
+ && docling-tools models download layout tableformer \
+ && rm -rf /root/.cache/huggingface/xet \
+ && find /root/.cache/huggingface -name "*.log" -delete
 
 COPY src/ ./src/
 COPY run_pipeline.py .
