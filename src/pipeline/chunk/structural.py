@@ -28,6 +28,16 @@ from src.pipeline.utils.io import read_jsonl, write_json, write_jsonl
 
 NUMBER_PREFIX = re.compile(r"^\s*(\d+(?:\.\d+)*)\.?\s+")
 
+# Post-split: heading-like prefix inside a larger blob that docling missed.
+# Academic PDFs often render headings inline with their body paragraph
+# ("1.1. Beyond Dyadic Interactions: ...title... . Body text starts here.").
+# We anchor at start-of-line, read number + title up to the first period+space
+# which typically marks the heading→body boundary. Title is capped at 120 chars
+# to reject multi-sentence false positives.
+MISSED_HEADING_RE = re.compile(
+    r"(?m)^\s*(\d+(?:\.\d+){0,3})\.?\s+([A-Z][A-Za-z0-9][^\.\n|]{1,120}?)\.\s"
+)
+
 
 def _infer_level(heading_text: str) -> tuple[int | None, str | None]:
     """Return (level, number) inferred from heading text, or (None, None)."""
@@ -37,6 +47,69 @@ def _infer_level(heading_text: str) -> tuple[int | None, str | None]:
     number = m.group(1)
     level = number.count(".") + 1
     return level, number
+
+
+def _post_split_missed_headings(chunks: list[dict], min_chunk_chars: int = 1024) -> list[dict]:
+    """Re-segment any non-table chunk >= `min_chunk_chars` by detecting missed
+    numbered-heading lines inside its text. This compensates for docling
+    occasionally mis-classifying section headers as body text (most visible on
+    academic papers where '2 Methods', '3 Results' share styling with prose).
+
+    Splitting only happens when at least one plausible heading is found inside.
+    The new chunks inherit their parent's page list and section metadata, with
+    `heading_path` extended by the newly-discovered heading.
+    """
+    out: list[dict] = []
+    for c in chunks:
+        if c.get("contains_table") or c["n_chars"] < min_chunk_chars:
+            out.append(c)
+            continue
+        text = c["text"] or ""
+        matches = list(MISSED_HEADING_RE.finditer(text))
+        if not matches:
+            out.append(c)
+            continue
+
+        base_path = c.get("heading_path") or c.get("heading")
+        base_level = c.get("heading_level") or 1
+        pieces: list[tuple[str | None, str]] = []
+
+        # Preamble before first match (if meaningful)
+        if matches[0].start() > 0:
+            pre = text[:matches[0].start()].strip()
+            if pre:
+                pieces.append((None, pre))
+
+        for i, m in enumerate(matches):
+            num = m.group(1)
+            title = m.group(2).strip()
+            heading = f"{num} {title}"
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            body = text[m.start():end].strip()
+            if body:
+                pieces.append((heading, body))
+
+        if len(pieces) == 1 and pieces[0][0] is None:
+            out.append(c)
+            continue
+
+        for (h, body) in pieces:
+            new_c = dict(c)
+            new_c["n_chars"] = len(body)
+            new_c["text"] = body
+            if h:
+                new_c["heading"] = h
+                new_c["heading_path"] = (f"{base_path} > {h}" if base_path else h)
+                new_c["heading_level"] = base_level + 1
+                new_c["number"] = h.split(" ", 1)[0]
+                new_c["flush_reason"] = "post_split_missed_heading"
+            else:
+                new_c["flush_reason"] = "post_split_preamble"
+            out.append(new_c)
+
+    for i, c in enumerate(out):
+        c["id"] = i
+    return out
 
 
 def _is_toc_table(text: str) -> bool:
@@ -210,6 +283,12 @@ def build(elements: list[dict]) -> tuple[list[dict], dict]:
 def main() -> None:
     elements = list(read_jsonl(paths.INTERIM / "docling_elements.jsonl"))
     chunks, doc = build(elements)
+    n_before = len(chunks)
+    chunks = _post_split_missed_headings(chunks, min_chunk_chars=10_240)
+    n_after = len(chunks)
+    if n_after != n_before:
+        print(f"[structural] post-split missed headings: "
+              f"{n_before} -> {n_after} chunks", flush=True)
 
     write_jsonl(paths.CHUNKS / "structural.jsonl", chunks)
     write_json(paths.INTERIM / "document.json", doc)
