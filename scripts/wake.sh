@@ -12,8 +12,10 @@ SERVICE_NAME="${SERVICE_NAME:-chunking}"
 CLUSTER="${CLUSTER:-default}"
 IMAGE="${IMAGE:-${ACCT}.dkr.ecr.${REGION}.amazonaws.com/sop-chunker:latest}"
 
-if aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --region "$REGION" \
-     --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --region "$REGION" \
+           --query 'services[0].status' --output text 2>/dev/null || true)
+# grep -q ACTIVE matches INACTIVE — use exact string comparison instead
+if [ "$STATUS" = "ACTIVE" ]; then
     echo "Service already ACTIVE."
     aws ecs describe-express-gateway-service \
       --service "arn:aws:ecs:${REGION}:${ACCT}:service/${CLUSTER}/${SERVICE_NAME}" \
@@ -21,6 +23,11 @@ if aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --r
       --query 'service.activeConfigurations[0].ingressPaths[0].endpoint' --output text
     exit 0
 fi
+if [ "$STATUS" = "DRAINING" ]; then
+    echo "Service is DRAINING — wait a minute and retry." >&2
+    exit 1
+fi
+echo "Service status: ${STATUS:-absent}. Proceeding to create."
 
 PRIMARY=$(mktemp)
 SCALE=$(mktemp)
