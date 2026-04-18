@@ -1,0 +1,32 @@
+# Pipeline artifacts (regenerated on every run)
+data/raw/*.pdf
+data/interim/
+data/chunks/
+data/embeddings/
+outputs/
+logs/
+# belt-and-suspenders: catch any stray data dir anywhere under src/
+**/data/embeddings/
+**/data/interim/
+**/data/chunks/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Secrets (defensive — none should live in the project anyway)
+tokens.md
+*.env
+.env
+.env.*
+!.env.example

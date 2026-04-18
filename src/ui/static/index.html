@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>SOP chunking pipeline</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1c2029; --border: #262b36;
+    --fg: #e5e9f0; --muted: #8b93a7; --accent: #7cc4ff;
+    --ok: #74d39a; --pending: #5b6272; --partial: #ffd166; --err: #ff6b6b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.45 system-ui, -apple-system, sans-serif; }
+
+  header { display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 15px; margin: 0; letter-spacing: .4px; }
+  header .meta { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  .flow { display: flex; align-items: stretch; justify-content: center;
+    gap: 0; padding: 20px 16px; background: linear-gradient(180deg, #13161d, #0f1115);
+    border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .flow-node { flex: 0 0 auto; min-width: 150px; padding: 12px 14px;
+    background: var(--panel); border: 2px solid var(--border); border-radius: 10px;
+    text-align: center; position: relative; transition: border-color .3s, box-shadow .3s; }
+  .flow-node .label { font-size: 12.5px; font-weight: 600; letter-spacing: .3px; }
+  .flow-node .status-pill { font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .8px; padding: 1px 7px;
+    border-radius: 999px; display: inline-block; margin-top: 6px; }
+  .flow-node .desc { font-size: 10.5px; color: var(--muted); margin-top: 4px; line-height: 1.3; }
+  .flow-node.done { border-color: var(--ok); box-shadow: 0 0 10px rgba(116,211,154,.15); }
+  .flow-node.done .status-pill { background: rgba(116,211,154,.15); color: var(--ok); }
+  .flow-node.partial { border-color: var(--partial); }
+  .flow-node.partial .status-pill { background: rgba(255,209,102,.12); color: var(--partial); }
+  .flow-node.pending { border-color: var(--pending); opacity: .55; }
+  .flow-node.pending .status-pill { background: rgba(139,147,167,.15); color: var(--muted); }
+  .flow-arrow { flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+    min-width: 28px; color: var(--muted); font-size: 22px; }
+  .flow-arrow.done-arrow { color: var(--ok); }
+
+  nav.tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--border);
+    background: var(--panel2); }
+  nav.tabs button { background: transparent; border: none; color: var(--muted);
+    font: inherit; padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent;
+    font-weight: 500; letter-spacing: .2px; }
+  nav.tabs button:hover { color: var(--fg); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  main { padding: 14px 20px 30px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .chunk-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+  .chunk-tab { background: transparent; border: 1px solid var(--border); color: var(--muted);
+    font-family: var(--mono); font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+  .chunk-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(124,196,255,.08); }
+  .chunk-tab .count { opacity: .7; margin-left: 6px; }
+  .chunks-grid { display: grid; grid-template-columns: 380px 1fr; gap: 0;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    background: var(--panel); height: 560px; }
+  .chunk-list { overflow-y: auto; border-right: 1px solid var(--border); }
+  .chunk-row { padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .chunk-row:hover { background: rgba(124,196,255,.06); }
+  .chunk-row.active { background: rgba(124,196,255,.12); }
+  .chunk-row .id { color: var(--accent); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+  .chunk-row .meta { color: var(--muted); font-size: 11px; font-family: var(--mono); margin-top: 3px; }
+  .chunk-row .prev { color: var(--fg); margin-top: 5px; line-height: 1.4; font-size: 12.5px; }
+  .chunk-detail { overflow-y: auto; padding: 14px 18px; font-family: var(--mono); font-size: 12.5px;
+    white-space: pre-wrap; line-height: 1.6; }
+  .chunk-detail .hdr { color: var(--accent); font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+  .chunk-detail .kv { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+  .pager { display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+    font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .pager button { background: transparent; border: 1px solid var(--border); color: var(--fg);
+    font-family: var(--mono); font-size: 11px; padding: 3px 9px; border-radius: 4px; cursor: pointer; }
+  .pager button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .log { height: 580px; overflow: auto; background: #0b0d12; font-family: var(--mono);
+    font-size: 12.5px; padding: 12px 16px; white-space: pre-wrap;
+    border: 1px solid var(--border); border-radius: 8px; }
+  .log .line.err { color: var(--err); }
+  .log .line.warn { color: var(--partial); }
+  .log .line.ok { color: var(--ok); }
+  .log-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .log-toolbar button { background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-family: var(--mono); font-size: 11px;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+
+  .metrics details { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+  .metrics summary { cursor: pointer; color: var(--accent); font-family: var(--mono); font-size: 13px; }
+  .metrics pre { margin: 10px 0 0 0; font-family: var(--mono); font-size: 12px;
+    line-height: 1.45; color: var(--fg); overflow-x: auto; }
+
+  .figures-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  .figure-card { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; }
+  .figure-card .cap { padding: 8px 14px; font-family: var(--mono); font-size: 11px;
+    color: var(--muted); border-bottom: 1px solid var(--border); }
+  .figure-card img { display: block; width: 100%; height: auto; }
+
+  .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; }
+  .card h3 { font-size: 13px; margin: 0 0 8px 0; color: var(--accent); letter-spacing: .3px; }
+  .card p { font-size: 12.5px; line-height: 1.6; color: var(--fg); margin: 4px 0; }
+  .card .k { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .card code { background: #0b0d12; padding: 1px 5px; border-radius: 3px;
+    font-size: 12px; color: var(--partial); }
+  .stages-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .stages-table th, .stages-table td { text-align: left; padding: 6px 8px;
+    border-bottom: 1px solid var(--border); }
+  .stages-table th { color: var(--muted); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .6px; }
+  .status-pill { font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .8px; padding: 1px 7px;
+    border-radius: 999px; display: inline-block; }
+  .status-pill.done    { background: rgba(116,211,154,.15); color: var(--ok); }
+  .status-pill.pending { background: rgba(139,147,167,.15); color: var(--muted); }
+  .status-pill.partial { background: rgba(255,209,102,.12); color: var(--partial); }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: pulse 1.6s infinite; }
+  .dot.off { background: var(--muted); }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+
+  .pill-btn { background: var(--accent); color: #0a0d14; border: none; padding: 7px 14px;
+    border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 12.5px; }
+  .pill-btn:hover { filter: brightness(1.1); }
+  .pill-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SOP chunking pipeline</h1>
+  <div class="meta">
+    <span id="clock"></span>
+    &nbsp;·&nbsp;<span id="authStatus"></span>
+    &nbsp;·&nbsp;<span><span class="dot off" id="sseDot"></span><span id="sseStatus">log: off</span></span>
+  </div>
+</header>
+
+<section id="uploader" style="padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--panel2);">
+  <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+    <input type="file" id="pdfInput" accept="application/pdf"
+           style="font-family:var(--mono); font-size:12px; color:var(--muted);"/>
+    <button id="uploadBtn" class="pill-btn">1. Upload PDF</button>
+    <button id="runBtn" class="pill-btn" disabled>2. Run pipeline</button>
+    <button id="downloadBtn" class="pill-btn" disabled>3. Download chunks (.zip)</button>
+    <input type="password" id="apiKeyInput" placeholder="API key (if set)"
+           style="background:var(--bg); border:1px solid var(--border); color:var(--fg);
+                  font-family:var(--mono); font-size:12px; padding:6px 10px; border-radius:4px;
+                  display:none;"/>
+    <span id="uploadStatus" class="k" style="font-family:var(--mono); font-size:11.5px;"></span>
+  </div>
+</section>
+
+<div class="flow" id="flow"></div>
+
+<nav class="tabs">
+  <button class="active" data-tab="chunks">Chunks</button>
+  <button data-tab="metrics">Metrics</button>
+  <button data-tab="log">Live log</button>
+  <button data-tab="figures">Figures</button>
+  <button data-tab="about">About</button>
+</nav>
+
+<main>
+  <section id="tab-chunks" class="tab-panel active">
+    <div class="chunk-tabs" id="chunkTabs">
+      <button class="chunk-tab" data-src="elements">elements (docling raw)<span class="count" id="cnt-elements">–</span></button>
+      <button class="chunk-tab active" data-src="structural">structural<span class="count" id="cnt-structural">–</span></button>
+      <button class="chunk-tab" data-src="coarse">coarse-DP<span class="count" id="cnt-coarse">–</span></button>
+    </div>
+    <div class="chunks-grid">
+      <div class="chunk-list" id="chunkList"><div class="k" style="padding:14px">loading…</div></div>
+      <div class="chunk-detail" id="chunkDetail"><div class="k">select a row to see full text</div></div>
+    </div>
+    <div class="pager">
+      <button id="prevPage">‹ prev</button>
+      <button id="nextPage">next ›</button>
+      <span id="pageInfo"></span>
+    </div>
+  </section>
+
+  <section id="tab-metrics" class="tab-panel">
+    <div class="metrics" id="metrics"><div class="k">loading…</div></div>
+  </section>
+
+  <section id="tab-log" class="tab-panel">
+    <div class="log-toolbar">
+      <span class="k">tailing <code>logs/current.log</code> via server-sent events</span>
+      <button id="clearLog">clear</button>
+    </div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <section id="tab-figures" class="tab-panel">
+    <div class="figures-grid" id="figures"></div>
+  </section>
+
+  <section id="tab-about" class="tab-panel">
+    <div class="about-grid">
+      <div class="card">
+        <h3>Pipeline overview</h3>
+        <p>Raw SOP PDF → <b>docling</b> (layout-aware extraction, no OCR) → <b>structural chunking</b> (group by heading, numbering-inferred levels, drop TOC tables) → <b>coarse DP</b> (exact dynamic-programming partition) → embed + evaluate + visualize.</p>
+        <p class="k">Pure Python. No LangChain. CPU only. Embedding model: all-MiniLM-L6-v2 (384-D, L2 normalized).</p>
+      </div>
+      <div class="card">
+        <h3>Coarse DP — the chunking method we're shipping</h3>
+        <p>For an ordered sequence of <i>n</i> structural units, find the globally-optimal contiguous partition minimizing:</p>
+        <p><code>cost(S) = (1 − mean_cos_sim_within(S)) + α · length_penalty(S) + β · heading_crossings(S)</code></p>
+        <p>Solved via O(n²) DP. Auto-calibrates <code>target_k = round(total_chars / 2000)</code> clamped to [12, 30]. Length penalty centered on <code>target_chars = total_chars / target_k</code>. Runs in ~2 ms on n=54.</p>
+        <p class="k">Result on this SOP: 21 chunks, mean ≈1933c, R@5 ≈ 0.87 on synthetic heading queries.</p>
+      </div>
+      <div class="card" style="grid-column: 1 / span 2;">
+        <h3>Stages (detailed)</h3>
+        <table class="stages-table">
+          <thead><tr><th>stage</th><th>status</th><th>artifacts</th><th>last updated</th></tr></thead>
+          <tbody id="stagesTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const fmtBytes = (n) => {
+  if (!n) return "0";
+  const u = ["B","KB","MB","GB"]; let i = 0;
+  while (n >= 1024 && i < u.length-1) { n /= 1024; i++; }
+  return n.toFixed(n < 10 && i ? 1 : 0) + u[i];
+};
+const fmtAgo = (t) => {
+  if (!t) return "—";
+  const s = Math.max(0, Math.floor(Date.now()/1000 - t));
+  if (s < 60) return s + "s ago";
+  if (s < 3600) return Math.floor(s/60) + "m ago";
+  return Math.floor(s/3600) + "h ago";
+};
+const escHtml = (s) => (s||"").replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+document.querySelectorAll("nav.tabs button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll("nav.tabs button").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById("tab-" + b.dataset.tab).classList.add("active");
+  };
+});
+
+async function fetchState() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" });
+    const s = await r.json();
+    renderFlow(s);
+    renderStagesTable(s);
+  } catch (e) {}
+}
+function renderFlow(s) {
+  const el = document.getElementById("flow");
+  el.innerHTML = "";
+  s.stages.forEach((st, i) => {
+    const node = document.createElement("div");
+    node.className = "flow-node " + st.status;
+    node.innerHTML = `<div class="label">${st.label}</div>
+                      <div class="status-pill ${st.status}">${st.status}</div>
+                      <div class="desc">${(st.description||"").slice(0,80)}</div>`;
+    el.appendChild(node);
+    if (i < s.stages.length - 1) {
+      const arrow = document.createElement("div");
+      const nextStatus = s.stages[i+1].status;
+      arrow.className = "flow-arrow" + (st.status==="done" && nextStatus!=="pending" ? " done-arrow" : "");
+      arrow.textContent = "→";
+      el.appendChild(arrow);
+    }
+  });
+}
+function renderStagesTable(s) {
+  const tbody = document.getElementById("stagesTable");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  for (const st of s.stages) {
+    const found = st.found.map(f => `<span style="color:var(--ok)">${f.path}</span> <span class="k">${fmtBytes(f.size)}</span>`).join("<br>");
+    const missing = st.missing.map(m => `<span class="k" style="text-decoration:line-through">${m}</span>`).join("<br>");
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${st.label}<br><span class="k">${st.description||""}</span></td>
+                     <td><span class="status-pill ${st.status}">${st.status}</span></td>
+                     <td style="font-family:var(--mono);font-size:11px">${found}${found&&missing?"<br>":""}${missing}</td>
+                     <td class="k">${st.latest_mtime ? fmtAgo(st.latest_mtime) : "—"}</td>`;
+    tbody.appendChild(row);
+  }
+}
+
+async function fetchMetrics() {
+  try {
+    const r = await fetch("/api/metrics", { cache: "no-store" });
+    const m = await r.json();
+    const el = document.getElementById("metrics");
+    const keys = Object.keys(m);
+    if (!keys.length) { el.innerHTML = '<div class="k">no metrics yet</div>'; return; }
+    el.innerHTML = keys.map(k => `
+      <details open>
+        <summary>${k}</summary>
+        <pre>${escHtml(JSON.stringify(m[k], null, 2))}</pre>
+      </details>`).join("");
+  } catch (e) {}
+}
+
+function renderFigures() {
+  const figs = ["chunk_sizes.png", "adjacent_distance.png", "umap_chunks.png", "umap_trajectory.png"];
+  const el = document.getElementById("figures");
+  const t = Date.now();
+  el.innerHTML = figs.map(name => {
+    const sid = "fig-" + name.replace(/\./g,"-");
+    return `<div class="figure-card" id="${sid}">
+              <div class="cap">${name}</div>
+              <img src="/figures/${name}?t=${t}"
+                   onerror="document.getElementById('${sid}').style.display='none'"/>
+            </div>`;
+  }).join("");
+}
+
+let es = null;
+function classify(l) {
+  const s = l.toLowerCase();
+  if (s.includes("error")||s.includes("traceback")||s.includes("failed")) return "err";
+  if (s.includes("warn")) return "warn";
+  if (s.includes("done")||s.includes("wrote")) return "ok";
+  return "";
+}
+function connectSSE() {
+  es = new EventSource("/api/log");
+  es.onopen = () => {
+    document.getElementById("sseDot").className = "dot on";
+    document.getElementById("sseStatus").textContent = "log: streaming";
+  };
+  es.onerror = () => {
+    document.getElementById("sseDot").className = "dot off";
+    document.getElementById("sseStatus").textContent = "log: reconnecting";
+    es.close(); setTimeout(connectSSE, 2000);
+  };
+  es.onmessage = (ev) => {
+    const { line } = JSON.parse(ev.data);
+    const log = document.getElementById("log");
+    const div = document.createElement("div");
+    div.className = "line " + classify(line);
+    div.textContent = line;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  };
+}
+document.getElementById("clearLog").onclick = () => { document.getElementById("log").innerHTML = ""; };
+
+const chunkState = { src: "structural", offset: 0, limit: 50, total: 0, rows: [], activeId: null };
+
+async function fetchChunks() {
+  const { src, offset, limit } = chunkState;
+  try {
+    const r = await fetch(`/api/chunks?src=${src}&offset=${offset}&limit=${limit}`, { cache: "no-store" });
+    const d = await r.json();
+    chunkState.rows = d.rows || [];
+    chunkState.total = d.total || 0;
+    document.getElementById("cnt-" + src).textContent = d.total;
+    renderChunkList();
+    document.getElementById("pageInfo").textContent =
+      `${d.total ? offset+1 : 0}–${Math.min(offset+limit, d.total)} of ${d.total}`;
+  } catch (e) {}
+}
+async function fetchCounts() {
+  for (const src of ["elements","structural","coarse"]) {
+    try {
+      const r = await fetch(`/api/chunks?src=${src}&offset=0&limit=0`, { cache: "no-store" });
+      const d = await r.json();
+      document.getElementById("cnt-"+src).textContent = d.exists ? d.total : "–";
+    } catch (e) {}
+  }
+}
+function renderChunkList() {
+  const list = document.getElementById("chunkList");
+  if (!chunkState.rows.length) { list.innerHTML = '<div class="k" style="padding:14px">no records yet</div>'; return; }
+  list.innerHTML = "";
+  for (const row of chunkState.rows) {
+    const el = document.createElement("div");
+    el.className = "chunk-row" + (row.id === chunkState.activeId ? " active" : "");
+    const meta = chunkState.src === "elements"
+      ? `${row.type||""}  p${row.page??"?"}  ${row.heading_level?"H"+row.heading_level+"  ":""}${row.n_chars}c`
+      : `${row.heading_path||row.heading||"(no heading)"}  ·  ${row.n_chars}c${row.contains_table?"  ·  TABLE":""}`;
+    el.innerHTML = `<div class="id">#${row.id}</div>
+                    <div class="meta">${escHtml(meta)}</div>
+                    <div class="prev">${escHtml(row.preview||"")}</div>`;
+    el.onclick = () => openChunk(row.id);
+    list.appendChild(el);
+  }
+}
+async function openChunk(id) {
+  chunkState.activeId = id;
+  renderChunkList();
+  try {
+    const r = await fetch(`/api/chunks?src=${chunkState.src}&id=${id}`, { cache: "no-store" });
+    const d = await r.json();
+    const rec = d.record;
+    const det = document.getElementById("chunkDetail");
+    if (!rec) { det.innerHTML = '<div class="k">not found</div>'; return; }
+    const kv = Object.entries(rec).filter(([k]) => k !== "text")
+      .map(([k,v]) => `<div class="kv">${k}: ${escHtml(JSON.stringify(v))}</div>`).join("");
+    det.innerHTML = `<div class="hdr">#${rec.id ?? rec.idx}</div>${kv}
+                     <hr style="border-color:var(--border)"/>${escHtml(rec.text||"")}`;
+  } catch (e) {}
+}
+document.querySelectorAll("#chunkTabs .chunk-tab").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll("#chunkTabs .chunk-tab").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    chunkState.src = b.dataset.src; chunkState.offset = 0; chunkState.activeId = null;
+    document.getElementById("chunkDetail").innerHTML = '<div class="k">select a row to see full text</div>';
+    fetchChunks();
+  };
+});
+document.getElementById("prevPage").onclick = () => {
+  chunkState.offset = Math.max(0, chunkState.offset - chunkState.limit); fetchChunks();
+};
+document.getElementById("nextPage").onclick = () => {
+  if (chunkState.offset + chunkState.limit < chunkState.total) {
+    chunkState.offset += chunkState.limit; fetchChunks();
+  }
+};
+
+// ---- upload + run + download + status ----
+const apiKeyInput = document.getElementById("apiKeyInput");
+function apiKey() { return apiKeyInput.value.trim() || localStorage.getItem("apiKey") || ""; }
+apiKeyInput.value = localStorage.getItem("apiKey") || "";
+apiKeyInput.addEventListener("input", () => localStorage.setItem("apiKey", apiKeyInput.value));
+
+function authHeaders() {
+  const k = apiKey();
+  return k ? { "X-API-Key": k } : {};
+}
+
+async function fetchAuthState() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store", headers: authHeaders() });
+    if (r.status === 401) {
+      apiKeyInput.style.display = "inline-block";
+      document.getElementById("authStatus").textContent = "auth: required";
+      return;
+    }
+    const s = await r.json();
+    if (s.auth_required) apiKeyInput.style.display = "inline-block";
+    document.getElementById("authStatus").textContent =
+      s.auth_required ? "auth: ok" : "auth: open";
+  } catch (e) {}
+}
+
+document.getElementById("uploadBtn").onclick = async () => {
+  const f = document.getElementById("pdfInput").files[0];
+  if (!f) { setUploadStatus("pick a .pdf first", "err"); return; }
+  const fd = new FormData();
+  fd.append("file", f);
+  setUploadStatus("uploading…");
+  try {
+    const r = await fetch("/api/upload", { method: "POST", body: fd, headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) { setUploadStatus("error: " + (d.error || r.statusText), "err"); return; }
+    setUploadStatus(`uploaded ${d.filename} (${(d.size/1024).toFixed(0)} KB) — click "Run pipeline"`, "ok");
+    document.getElementById("runBtn").disabled = false;
+    document.getElementById("downloadBtn").disabled = true;
+  } catch (e) { setUploadStatus("upload failed: " + e.message, "err"); }
+};
+
+document.getElementById("runBtn").onclick = async () => {
+  setUploadStatus("starting pipeline…");
+  document.getElementById("runBtn").disabled = true;
+  try {
+    const r = await fetch("/api/run", { method: "POST", headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) { setUploadStatus("error: " + (d.error || r.statusText), "err"); return; }
+    setUploadStatus("pipeline running — see Live log tab");
+    pollStatus();
+  } catch (e) { setUploadStatus("run failed: " + e.message, "err"); }
+};
+
+document.getElementById("downloadBtn").onclick = async () => {
+  const url = "/api/download" + (apiKey() ? `?key=${encodeURIComponent(apiKey())}` : "");
+  const a = document.createElement("a");
+  a.href = url;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+
+async function pollStatus() {
+  try {
+    const r = await fetch("/api/status", { cache: "no-store", headers: authHeaders() });
+    const s = await r.json();
+    if (s.status === "running") {
+      setUploadStatus(`running… (elapsed ${((Date.now()/1000 - (s.started_at||0))).toFixed(0)}s)`);
+      setTimeout(pollStatus, 1500);
+    } else if (s.status === "done") {
+      setUploadStatus("pipeline done — you can download the chunks now", "ok");
+      document.getElementById("downloadBtn").disabled = false;
+      document.getElementById("runBtn").disabled = false;
+    } else if (s.status === "error") {
+      setUploadStatus("pipeline failed: " + (s.message || ""), "err");
+      document.getElementById("runBtn").disabled = false;
+    }
+  } catch (e) {}
+}
+
+function setUploadStatus(msg, kind) {
+  const el = document.getElementById("uploadStatus");
+  el.textContent = msg;
+  el.style.color = kind === "err" ? "var(--err)" : kind === "ok" ? "var(--ok)" : "var(--muted)";
+}
+
+// reflect existing pipeline state at page load (in case something's already there)
+(async () => {
+  await fetchAuthState();
+  try {
+    const r = await fetch("/api/status", { headers: authHeaders() });
+    const s = await r.json();
+    if (s.status === "done") document.getElementById("downloadBtn").disabled = false;
+    if (s.status === "running") pollStatus();
+  } catch (e) {}
+  try {
+    const r = await fetch("/api/state", { headers: authHeaders() });
+    const s = await r.json();
+    if (s.pdf) {
+      setUploadStatus(`current PDF: ${s.pdf} — click "Run pipeline" to re-process or upload a new one`, "ok");
+      document.getElementById("runBtn").disabled = false;
+    }
+  } catch (e) {}
+})();
+
+function tick() { document.getElementById("clock").textContent = new Date().toLocaleTimeString(); }
+setInterval(tick, 1000); tick();
+setInterval(fetchState, 2000); fetchState();
+setInterval(fetchMetrics, 4000); fetchMetrics();
+setInterval(fetchCounts, 4000); fetchCounts();
+fetchChunks();
+renderFigures();
+setInterval(renderFigures, 10000);
+connectSSE();
+</script>
+</body>
+</html>

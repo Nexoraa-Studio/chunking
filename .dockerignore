@@ -1,0 +1,12 @@
+data/raw/*.pdf
+data/interim/*
+data/chunks/*
+data/embeddings/*
+outputs/*
+logs/*
+.git
+.venv
+__pycache__
+*.pyc
+.DS_Store
+notebooks/
