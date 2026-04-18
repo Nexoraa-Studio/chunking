@@ -219,8 +219,10 @@ def _collect_metrics() -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, fmt, *args):  # silence access log
-        return
+    # Access logs are emitted — they double as an activity signal for the
+    # idle-watcher Lambda that auto-shuts the ECS service when log_group has
+    # no events for N minutes. Do not silence.
+    pass
 
     def do_HEAD(self) -> None:  # noqa: N802
         # Reuse GET path but suppress body by temporarily swapping wfile.
