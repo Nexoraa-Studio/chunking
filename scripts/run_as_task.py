@@ -142,6 +142,27 @@ def main() -> int:
         s3.put_object(Bucket=bucket, Key=out_key, Body=zip_bytes,
                       ContentType="application/zip", CacheControl="no-store")
 
+        # Also upload intermediate artifacts so the dashboard UI can browse them.
+        def _upload(local: Path, key: str, ctype: str) -> None:
+            if not local.exists():
+                return
+            s3.upload_file(str(local), bucket, key,
+                           ExtraArgs={"ContentType": ctype,
+                                      "CacheControl": "no-store"})
+            print(f"[task] +s3://{bucket}/{key} ({local.stat().st_size}B)", flush=True)
+
+        _upload(paths.CHUNKS / "structural.jsonl",
+                f"jobs/{job_id}/structural.jsonl", "application/x-ndjson")
+        _upload(paths.CHUNKS / "semantic_coarse.jsonl",
+                f"jobs/{job_id}/coarse.jsonl", "application/x-ndjson")
+        _upload(paths.INTERIM / "docling_elements.jsonl",
+                f"jobs/{job_id}/elements.jsonl", "application/x-ndjson")
+
+        if paths.METRICS.exists():
+            for mfile in sorted(paths.METRICS.glob("*.json")):
+                _upload(mfile, f"jobs/{job_id}/metrics/{mfile.name}",
+                        "application/json")
+
         state.update({
             "status": "done",
             "finished_at": time.time(),

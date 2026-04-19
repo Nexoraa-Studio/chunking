@@ -13,13 +13,10 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
                font: 14px/1.45 system-ui, -apple-system, sans-serif; }
-
   header { display: flex; justify-content: space-between; align-items: center;
            padding: 12px 20px; border-bottom: 1px solid var(--border); }
   header h1 { font-size: 15px; margin: 0; letter-spacing: .4px; }
   header .meta { font-size: 11px; color: var(--muted); font-family: var(--mono); }
-
-  /* ---------- upload band ---------- */
   section#uploader { padding: 14px 20px; border-bottom: 1px solid var(--border);
                      background: var(--panel2); }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -31,24 +28,22 @@
   .pill-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
   .k { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
 
-  /* ---------- flow chart ---------- */
-  .flow { display: flex; align-items: stretch; justify-content: flex-start;
-          gap: 0; padding: 20px 16px;
+  .flow { display: flex; justify-content: flex-start; gap: 0; padding: 20px 16px;
           background: linear-gradient(180deg, #13161d, #0f1115);
           border-bottom: 1px solid var(--border); overflow-x: auto; }
   .flow::before, .flow::after { content:""; flex: 1 0 auto; min-width: 8px; }
-  .flow-node { flex: 0 0 auto; min-width: 150px; padding: 12px 14px;
+  .flow-node { flex: 0 0 auto; min-width: 140px; padding: 12px 14px;
                background: var(--panel); border: 2px solid var(--border);
                border-radius: 10px; text-align: center;
                transition: border-color .3s, box-shadow .3s; }
-  .flow-node .label { font-size: 12.5px; font-weight: 600; letter-spacing: .3px; }
+  .flow-node .label { font-size: 12.5px; font-weight: 600; }
   .flow-node .status-pill { font-family: var(--mono); font-size: 10px;
     text-transform: uppercase; letter-spacing: .8px; padding: 1px 7px;
     border-radius: 999px; display: inline-block; margin-top: 6px; }
   .flow-node .desc { font-size: 10.5px; color: var(--muted); margin-top: 4px; line-height: 1.3; }
   .flow-node.done { border-color: var(--ok); box-shadow: 0 0 10px rgba(116,211,154,.15); }
   .flow-node.done .status-pill { background: rgba(116,211,154,.15); color: var(--ok); }
-  .flow-node.active { border-color: var(--partial); box-shadow: 0 0 10px rgba(255,209,102,.18); }
+  .flow-node.active { border-color: var(--partial); }
   .flow-node.active .status-pill { background: rgba(255,209,102,.12); color: var(--partial); animation: pulse 1.6s infinite; }
   .flow-node.error { border-color: var(--err); }
   .flow-node.error .status-pill { background: rgba(255,107,107,.12); color: var(--err); }
@@ -59,7 +54,6 @@
   .flow-arrow.done-arrow { color: var(--ok); }
   @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
 
-  /* ---------- tabs ---------- */
   nav.tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--border);
              background: var(--panel2); }
   nav.tabs button { background: transparent; border: none; color: var(--muted);
@@ -67,28 +61,57 @@
                     border-bottom: 2px solid transparent; font-weight: 500; }
   nav.tabs button:hover { color: var(--fg); }
   nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-  main { padding: 14px 20px 30px; min-height: 60vh; }
+  main { padding: 14px 20px 30px; }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
-
   .card { background: var(--panel); border: 1px solid var(--border);
           border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; }
-  .card h3 { margin: 0 0 10px 0; font-size: 13px; color: var(--accent); letter-spacing: .3px; }
-  .card p { font-size: 12.5px; line-height: 1.6; margin: 4px 0; }
-  .card code { background: #0b0d12; padding: 1px 5px; border-radius: 3px;
-               font-size: 12px; color: var(--partial); font-family: var(--mono); }
+  .card h3 { margin: 0 0 10px 0; font-size: 13px; color: var(--accent); }
   pre { background: #0b0d12; padding: 12px 16px; border-radius: 6px;
         font-family: var(--mono); font-size: 12px; line-height: 1.5;
-        overflow: auto; max-height: 480px; color: var(--fg); margin: 0; }
+        overflow: auto; max-height: 520px; color: var(--fg); margin: 0; white-space: pre-wrap; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .kv { display: grid; grid-template-columns: 180px 1fr; gap: 8px 12px; font-size: 12.5px; }
-  .kv .k { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
-  .kv .v { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
-  table.meta { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  table.meta th, table.meta td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-  table.meta th { color: var(--muted); font-weight: 500; font-size: 11px;
-                  text-transform: uppercase; letter-spacing: .6px; }
+  .kv .k, .kv .v { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+  .kv .k { color: var(--muted); }
+  details { background: var(--panel); border: 1px solid var(--border);
+            border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+  summary { cursor: pointer; color: var(--accent); font-family: var(--mono); font-size: 13px; }
+
+  /* ---------- chunks viewer ---------- */
+  .chunk-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+  .chunk-tab { background: transparent; border: 1px solid var(--border); color: var(--muted);
+    font-family: var(--mono); font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+  .chunk-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(124,196,255,.08); }
+  .chunk-tab .count { opacity: .7; margin-left: 6px; }
+  .chunks-grid { display: grid; grid-template-columns: 380px 1fr; gap: 0;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    background: var(--panel); height: 520px; }
+  .chunk-list { overflow-y: auto; border-right: 1px solid var(--border); }
+  .chunk-row { padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .chunk-row:hover { background: rgba(124,196,255,.06); }
+  .chunk-row.active { background: rgba(124,196,255,.12); }
+  .chunk-row .id { color: var(--accent); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+  .chunk-row .meta { color: var(--muted); font-size: 11px; font-family: var(--mono); margin-top: 3px; }
+  .chunk-row .prev { color: var(--fg); margin-top: 5px; line-height: 1.4; font-size: 12.5px; }
+  .chunk-detail { overflow-y: auto; padding: 14px 18px; font-family: var(--mono); font-size: 12.5px;
+    white-space: pre-wrap; line-height: 1.55; }
+  .chunk-detail .hdr { color: var(--accent); font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+  .chunk-detail .kv-row { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+  .pager { display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+    font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .pager button { background: transparent; border: 1px solid var(--border); color: var(--fg);
+    font-family: var(--mono); font-size: 11px; padding: 3px 9px; border-radius: 4px; cursor: pointer; }
+  .pager button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- live log ---------- */
+  .log { height: 560px; overflow: auto; background: #0b0d12; font-family: var(--mono);
+         font-size: 12.5px; padding: 12px 16px; white-space: pre-wrap;
+         border: 1px solid var(--border); border-radius: 8px; }
+  .log .line.err { color: var(--err); }
+  .log .line.warn { color: var(--partial); }
+  .log .line.ok { color: var(--ok); }
+  .log-tools { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -116,8 +139,10 @@
 
 <nav class="tabs">
   <button class="active" data-tab="status">Status</button>
-  <button data-tab="job">Job details</button>
-  <button data-tab="about">About this deploy</button>
+  <button data-tab="chunks">Chunks</button>
+  <button data-tab="metrics">Metrics</button>
+  <button data-tab="log">Live log</button>
+  <button data-tab="about">About</button>
 </nav>
 
 <main>
@@ -140,49 +165,55 @@
         </div>
       </div>
       <div class="card">
-        <h3>What's happening under the hood</h3>
-        <p class="k">Cold Fargate boot is ~60–90 s on the first job (ECR pull). Warm boot is ~15–30 s while the image is cached. The actual pymupdf+DP pipeline is ~5–15 s for a typical 20–50 page PDF. Status is polled every 3 s from the job's <code>status.json</code> in S3.</p>
-        <p class="k">If something goes wrong the task writes an error traceback into <code>status.json</code> and you'll see it on the "Job details" tab.</p>
+        <h3>Raw status.json</h3>
+        <pre id="status-raw">(no job yet)</pre>
       </div>
     </div>
   </section>
 
-  <section id="tab-job" class="tab-panel">
-    <div class="card">
-      <h3>Raw status.json (polled from S3)</h3>
-      <pre id="status-raw">(no job yet)</pre>
+  <section id="tab-chunks" class="tab-panel">
+    <div class="chunk-tabs" id="chunkTabs">
+      <button class="chunk-tab" data-src="elements">elements (pymupdf raw)<span class="count" id="cnt-elements">–</span></button>
+      <button class="chunk-tab active" data-src="structural">structural<span class="count" id="cnt-structural">–</span></button>
+      <button class="chunk-tab" data-src="coarse">coarse-DP<span class="count" id="cnt-coarse">–</span></button>
     </div>
+    <div class="chunks-grid">
+      <div class="chunk-list" id="chunkList"><div class="k" style="padding:14px">run a pipeline first…</div></div>
+      <div class="chunk-detail" id="chunkDetail"><div class="k">select a row to see full text</div></div>
+    </div>
+    <div class="pager">
+      <button id="prevPage">‹ prev</button>
+      <button id="nextPage">next ›</button>
+      <span id="pageInfo"></span>
+    </div>
+  </section>
+
+  <section id="tab-metrics" class="tab-panel">
+    <div id="metrics"><div class="k">run a pipeline first…</div></div>
+  </section>
+
+  <section id="tab-log" class="tab-panel">
+    <div class="log-tools">
+      <span class="k">CloudWatch Logs tail for the job's Fargate task (polled every 3 s)</span>
+      <button class="pill-btn" id="clearLog" style="font-size:11px; padding:4px 10px;">clear</button>
+    </div>
+    <div class="log" id="log">(no job yet)</div>
   </section>
 
   <section id="tab-about" class="tab-panel">
     <div class="grid-2">
       <div class="card">
         <h3>Architecture</h3>
-        <p>Browser → <b>API Gateway HTTP API</b> → <b>Lambda <code>chunking-api</code></b> (thin API).</p>
-        <p>Upload bypasses Lambda: the browser POSTs directly to <b>S3 <code>chunking-jobs-…apsouth1</code></b> using a presigned URL the Lambda hands back.</p>
-        <p>On <b>Run</b>, Lambda calls <code>ecs:RunTask</code> on task-def <code>chunking-worker:1</code> (1 vCPU / 4 GB Fargate). The task reads the PDF from S3, runs pymupdf → structural → coarse-DP, uploads <code>chunks.zip</code> + <code>status.json</code> back to the same S3 prefix, then exits.</p>
-        <p>Download is a 302 redirect to a presigned GET URL on S3.</p>
+        <p>Browser → <b>API Gateway HTTP API</b> → <b>Lambda <code>chunking-api</code></b>. Upload bypasses Lambda (browser POSTs directly to S3 with a presigned URL). On Run, Lambda calls <code>ecs:RunTask</code> on task-def <code>chunking-worker:1</code> (1 vCPU / 4 GB). Worker pulls PDF from S3, runs pymupdf → structural → coarse-DP, uploads every artifact (elements/structural/coarse JSONL, metrics JSONs, chunks.zip, status.json) back to S3. Download is a 302 to a presigned GET URL.</p>
       </div>
       <div class="card">
-        <h3>Cost profile</h3>
-        <table class="meta">
-          <tr><th>item</th><th>cost</th></tr>
-          <tr><td>Lambda (free tier)</td><td>$0</td></tr>
-          <tr><td>API Gateway HTTP API</td><td>~$1/mo</td></tr>
-          <tr><td>S3 storage (7-day lifecycle)</td><td>~$0.05/mo</td></tr>
-          <tr><td>Fargate when a job runs (1 vCPU / 4 GB)</td><td>$0.058/hr active</td></tr>
-          <tr><td><b>Idle cost</b></td><td><b>≈ $1/mo total</b></td></tr>
-        </table>
-        <p class="k" style="margin-top:12px">Compare to the ECS Express stack which has an always-on ALB at ~$16/mo even when paused.</p>
+        <h3>Cost profile (idle)</h3>
+        <p><code>Lambda + APIGW + S3</code> ≈ <b>$1/mo</b> idle. Fargate billed only while a task is running (≈ $0.058/hr). Compare: ECS Express always-on ALB is $16/mo even paused.</p>
       </div>
       <div class="card" style="grid-column: 1 / span 2;">
-        <h3>Why API Gateway instead of Lambda Function URL?</h3>
-        <p>The Nexoraa org SCP blocks Lambda Function URLs with <code>AuthType=NONE</code>. IAM-signed invoke works (we tested), but a browser can't sign AWS requests without leaking credentials. API Gateway sits on the outside of that SCP, so it becomes the public front door. A Function URL still exists on the Lambda at <code>xrsklj3f2mezkfiigs7nmp5pm40zbprf.lambda-url.ap-south-1.on.aws</code> but it's locked to AWS_IAM.</p>
-      </div>
-      <div class="card" style="grid-column: 1 / span 2;">
-        <h3>What this UI does NOT support (and why)</h3>
-        <p><b>Live log stream:</b> API Gateway HTTP API doesn't support server-sent events cleanly; would need a WebSocket API or CloudWatch Logs tail. Polling <code>status.json</code> every 3 s is good enough for the current job's fidelity.</p>
-        <p><b>In-browser chunk viewer:</b> would need Lambda endpoints that read the chunks.zip contents from S3. Can be added — the ECS-Express stack has it.</p>
+        <h3>What's NOT in this UI (yet)</h3>
+        <p><b>Live log:</b> we DO show CloudWatch Logs events polled every 3 s. Not technically SSE; API Gateway HTTP API doesn't support SSE cleanly. The 3-second polling cadence is within a second or two of true "live" for the task's own stdout.</p>
+        <p><b>Evaluation / UMAP figures:</b> skipped because we'd need ground-truth queries per PDF, and the viz step (matplotlib + umap-learn) would bloat the Fargate image. The ECS Express dashboard has them since it runs locally against a stable artifact set.</p>
       </div>
     </div>
   </section>
@@ -193,51 +224,42 @@
 const $ = (id) => document.getElementById(id);
 let jobId = null;
 let pollTimer = null;
+let logTimer = null;
 
-// ---- tab switching ----
 document.querySelectorAll("nav.tabs button").forEach(b => {
   b.onclick = () => {
     document.querySelectorAll("nav.tabs button").forEach(x => x.classList.remove("active"));
     document.querySelectorAll(".tab-panel").forEach(x => x.classList.remove("active"));
     b.classList.add("active");
     $("tab-" + b.dataset.tab).classList.add("active");
+    if (b.dataset.tab === "metrics") fetchMetrics();
+    if (b.dataset.tab === "log") pollLog();
   };
 });
 
-// ---- clock ----
 function tick() { $("clock").textContent = new Date().toLocaleTimeString(); }
 setInterval(tick, 1000); tick();
 
-// ---- flow chart ----
 const STAGES = [
-  { id: "upload",   label: "Upload",        desc: "browser → S3 presigned POST" },
-  { id: "queued",   label: "Queued",        desc: "Lambda called ecs:RunTask" },
-  { id: "starting", label: "Starting",      desc: "Fargate pulling image + loading MiniLM" },
-  { id: "running",  label: "Pipeline",      desc: "pymupdf → structural → coarse-DP" },
-  { id: "done",     label: "Ready",         desc: "chunks.zip written to S3" },
+  { id: "upload",   label: "Upload",   desc: "browser → S3 presigned POST" },
+  { id: "queued",   label: "Queued",   desc: "Lambda called ecs:RunTask" },
+  { id: "starting", label: "Starting", desc: "Fargate pulling image + loading MiniLM" },
+  { id: "running",  label: "Pipeline", desc: "pymupdf → structural → coarse-DP" },
+  { id: "done",     label: "Ready",    desc: "chunks.zip written to S3" },
 ];
 
 function renderFlow(status) {
   const el = $("flow");
   el.innerHTML = "";
-  // Determine active/done states per stage
-  const order = ["upload", "queued", "starting", "running", "done"];
-  const orderIdx = { upload:-1, queued:1, starting:2, running:3, done:4, error:5 };
-  let currentIdx = status === "error" ? -2 : (orderIdx[status] ?? -1);
-  // If user has uploaded (jobId exists) and status is queued/running etc., mark upload done.
+  const orderIdx = { queued:1, starting:2, running:3, done:4 };
   const uploaded = !!jobId;
-
+  const currentIdx = status === "error" ? -2 : (orderIdx[status] ?? -1);
   STAGES.forEach((st, i) => {
     let state = "pending";
-    if (st.id === "upload") {
-      state = uploaded ? "done" : "pending";
-    } else if (status === "error" && i <= (orderIdx["running"] ?? 3)) {
-      state = "error";
-    } else if (currentIdx === i) {
-      state = "active";
-    } else if (currentIdx > i) {
-      state = "done";
-    }
+    if (st.id === "upload") state = uploaded ? "done" : "pending";
+    else if (status === "error" && i <= 3) state = "error";
+    else if (currentIdx === i) state = "active";
+    else if (currentIdx > i) state = "done";
     const node = document.createElement("div");
     node.className = "flow-node " + state;
     const pillText = state === "active" ? status : state;
@@ -255,28 +277,25 @@ function renderFlow(status) {
 }
 renderFlow(null);
 
-// ---- upload ----
 function setMsg(t, kind) {
   const el = $("msg");
   el.textContent = t;
   el.style.color = kind === "err" ? "var(--err)" :
                    kind === "ok"  ? "var(--ok)"  : "var(--muted)";
 }
-function fmtTs(ts) {
-  if (!ts) return "—";
-  return new Date(ts * 1000).toLocaleString();
-}
+function fmtTs(ts) { return ts ? new Date(ts*1000).toLocaleString() : "—"; }
 function fmtSize(n) {
   if (!n) return "—";
   if (n < 1024) return n + " B";
   if (n < 1024*1024) return (n/1024).toFixed(1) + " KB";
   return (n/1024/1024).toFixed(2) + " MB";
 }
+function escHtml(s) { return (s||"").replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
 $("btn-upload").onclick = async () => {
   const f = $("pdf").files[0];
   if (!f) { setMsg("pick a PDF first", "err"); return; }
-  setMsg(`uploading ${(f.size/1024).toFixed(0)} KB directly to S3…`);
+  setMsg(`requesting upload URL…`);
   const r = await fetch(`/api/upload-url?filename=${encodeURIComponent(f.name)}`);
   const d = await r.json();
   if (!r.ok) { setMsg("upload-url error: " + JSON.stringify(d), "err"); return; }
@@ -285,18 +304,19 @@ $("btn-upload").onclick = async () => {
   $("sum-pdf").textContent = f.name;
   $("sum-pdf-size").textContent = fmtSize(f.size);
   renderFlow(null);
-
+  setMsg(`uploading ${(f.size/1024).toFixed(0)} KB directly to S3…`);
   const fd = new FormData();
   for (const [k, v] of Object.entries(d.upload.fields)) fd.append(k, v);
-  fd.append("Content-Type", "application/pdf");
   fd.append("file", f);
-  const s3r = await fetch(d.upload.url, { method: "POST", body: fd });
+  const t0 = performance.now();
+  const s3r = await fetch(d.upload.url, { method: "POST", body: fd, mode: "cors" });
+  const dt = ((performance.now()-t0)/1000).toFixed(2);
   if (!s3r.ok) {
     const t = await s3r.text();
     setMsg(`S3 upload failed (${s3r.status}): ${t.slice(0,200)}`, "err");
     return;
   }
-  setMsg(`uploaded ${f.name} — click "Run pipeline"`, "ok");
+  setMsg(`uploaded ${f.name} in ${dt}s — click "Run pipeline"`, "ok");
   $("btn-run").disabled = false;
   $("btn-download").disabled = true;
 };
@@ -306,14 +326,13 @@ $("btn-run").onclick = async () => {
   setMsg("launching Fargate task…");
   $("btn-run").disabled = true;
   const r = await fetch("/api/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ job_id: jobId }),
   });
   const d = await r.json();
   if (!r.ok) { setMsg("run error: " + JSON.stringify(d), "err"); return; }
-  setMsg("task queued — polling status…");
-  pollStatus();
+  setMsg("task queued — polling status + log…");
+  pollStatus(); pollLog(); fetchCounts();
 };
 
 async function pollStatus() {
@@ -336,21 +355,140 @@ async function pollStatus() {
     if (d.status === "done") {
       setMsg(`pipeline done in ${d.elapsed_s}s — ${d.n_chunks} chunks`, "ok");
       $("btn-download").disabled = false;
+      fetchCounts(); fetchMetrics();
       return;
     }
     if (d.status === "error") {
-      setMsg("task failed — see Job details tab", "err");
+      setMsg("task failed — see status or log tab", "err");
       return;
     }
-  } catch (e) {
-    console.error(e);
-  }
+  } catch (e) { console.error(e); }
   pollTimer = setTimeout(pollStatus, 3000);
 }
 
-$("btn-download").onclick = () => {
+$("btn-download").onclick = () => { if (jobId) window.location = `/api/download?job=${jobId}`; };
+
+// ---- log ----
+function classifyLine(m) {
+  const s = (m||"").toLowerCase();
+  if (s.includes("error")||s.includes("traceback")||s.includes("failed")) return "err";
+  if (s.includes("warn")) return "warn";
+  if (s.includes("done")||s.includes(" uploaded")||s.includes("complete")) return "ok";
+  return "";
+}
+async function pollLog() {
+  clearTimeout(logTimer);
   if (!jobId) return;
-  window.location = `/api/download?job=${jobId}`;
+  try {
+    const r = await fetch(`/api/log?job=${jobId}`, { cache: "no-store" });
+    const d = await r.json();
+    const el = $("log");
+    if (d.note && !d.lines.length) {
+      el.innerHTML = `<div class="k">${escHtml(d.note)}</div>`;
+    } else {
+      el.innerHTML = d.lines.map(l => {
+        const ts = new Date(l.t).toISOString().slice(11, 19);
+        return `<div class="line ${classifyLine(l.m)}">${ts}  ${escHtml(l.m)}</div>`;
+      }).join("");
+      el.scrollTop = el.scrollHeight;
+    }
+  } catch (e) { console.error(e); }
+  // keep polling until done/error
+  const s = $("sum-status").textContent;
+  if (s !== "done" && s !== "error") logTimer = setTimeout(pollLog, 3000);
+}
+$("clearLog").onclick = () => { $("log").innerHTML = ""; };
+
+// ---- metrics ----
+async function fetchMetrics() {
+  if (!jobId) { $("metrics").innerHTML = '<div class="k">no job yet</div>'; return; }
+  try {
+    const r = await fetch(`/api/metrics?job=${jobId}`, { cache: "no-store" });
+    const d = await r.json();
+    const keys = Object.keys(d);
+    if (!keys.length) { $("metrics").innerHTML = '<div class="k">no metrics yet</div>'; return; }
+    $("metrics").innerHTML = keys.map(k =>
+      `<details open><summary>${k}</summary><pre>${escHtml(JSON.stringify(d[k], null, 2))}</pre></details>`
+    ).join("");
+  } catch (e) { $("metrics").innerHTML = `<div class="k">error: ${e.message}</div>`; }
+}
+
+// ---- chunks ----
+const chunkState = { src: "structural", offset: 0, limit: 50, total: 0, rows: [], activeId: null };
+
+async function fetchChunks() {
+  if (!jobId) return;
+  const { src, offset, limit } = chunkState;
+  try {
+    const r = await fetch(`/api/chunks?job=${jobId}&src=${src}&offset=${offset}&limit=${limit}`, { cache: "no-store" });
+    const d = await r.json();
+    chunkState.rows = d.rows || [];
+    chunkState.total = d.total || 0;
+    $("cnt-"+src).textContent = d.total;
+    renderChunkList();
+    $("pageInfo").textContent =
+      `${d.total ? offset+1 : 0}–${Math.min(offset+limit, d.total)} of ${d.total}`;
+  } catch (e) { console.error(e); }
+}
+async function fetchCounts() {
+  if (!jobId) return;
+  for (const s of ["elements","structural","coarse"]) {
+    try {
+      const r = await fetch(`/api/chunks?job=${jobId}&src=${s}&limit=0`, { cache: "no-store" });
+      const d = await r.json();
+      $("cnt-"+s).textContent = d.exists ? d.total : "–";
+    } catch (e) {}
+  }
+  fetchChunks();
+}
+function renderChunkList() {
+  const list = $("chunkList");
+  if (!chunkState.rows.length) { list.innerHTML = '<div class="k" style="padding:14px">no records yet</div>'; return; }
+  list.innerHTML = "";
+  for (const row of chunkState.rows) {
+    const el = document.createElement("div");
+    el.className = "chunk-row" + (row.id === chunkState.activeId ? " active" : "");
+    const meta = chunkState.src === "elements"
+      ? `${row.type||""}  p${row.page??"?"}  ${row.heading_level?"H"+row.heading_level+"  ":""}${row.n_chars}c`
+      : `${row.heading_path||row.heading||"(no heading)"}  ·  ${row.n_chars}c${row.contains_table?"  ·  TABLE":""}`;
+    el.innerHTML = `<div class="id">#${row.id}</div>
+                    <div class="meta">${escHtml(meta)}</div>
+                    <div class="prev">${escHtml(row.preview||"")}</div>`;
+    el.onclick = () => openChunk(row.id);
+    list.appendChild(el);
+  }
+}
+async function openChunk(id) {
+  chunkState.activeId = id;
+  renderChunkList();
+  try {
+    const r = await fetch(`/api/chunks?job=${jobId}&src=${chunkState.src}&id=${id}`, { cache: "no-store" });
+    const d = await r.json();
+    const rec = d.record;
+    const det = $("chunkDetail");
+    if (!rec) { det.innerHTML = '<div class="k">not found</div>'; return; }
+    const kv = Object.entries(rec).filter(([k]) => k !== "text")
+      .map(([k,v]) => `<div class="kv-row">${k}: ${escHtml(JSON.stringify(v))}</div>`).join("");
+    det.innerHTML = `<div class="hdr">#${rec.id ?? rec.idx}</div>${kv}
+                     <hr style="border-color:var(--border)"/>${escHtml(rec.text||"")}`;
+  } catch (e) {}
+}
+document.querySelectorAll("#chunkTabs .chunk-tab").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll("#chunkTabs .chunk-tab").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    chunkState.src = b.dataset.src; chunkState.offset = 0; chunkState.activeId = null;
+    $("chunkDetail").innerHTML = '<div class="k">select a row to see full text</div>';
+    fetchChunks();
+  };
+});
+$("prevPage").onclick = () => {
+  chunkState.offset = Math.max(0, chunkState.offset - chunkState.limit); fetchChunks();
+};
+$("nextPage").onclick = () => {
+  if (chunkState.offset + chunkState.limit < chunkState.total) {
+    chunkState.offset += chunkState.limit; fetchChunks();
+  }
 };
 </script>
 </body>

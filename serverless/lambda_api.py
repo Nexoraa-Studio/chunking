@@ -45,6 +45,15 @@ s3 = boto3.client(
                   s3={"addressing_style": "virtual"}),
 )
 ecs = boto3.client("ecs", region_name=REGION)
+logs = boto3.client("logs", region_name=REGION)
+
+WORKER_LOG_GROUP = "/ecs/chunking-worker"
+
+CHUNK_SOURCES = {
+    "elements":   "elements.jsonl",
+    "structural": "structural.jsonl",
+    "coarse":     "coarse.jsonl",
+}
 
 HERE = Path(__file__).resolve().parent
 UI_HTML = (HERE / "index.html").read_text(encoding="utf-8") if (HERE / "index.html").exists() else "<h1>UI missing</h1>"
@@ -180,6 +189,129 @@ def read_status(event):
     return _ok(data)
 
 
+def read_log(event):
+    """Tail CloudWatch Logs for the task ARN recorded in the job's status.json."""
+    qs = _qs(event)
+    job_id = qs.get("job")
+    if not job_id:
+        return _err("job query param required")
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=f"jobs/{job_id}/status.json")
+        status = json.loads(obj["Body"].read())
+    except Exception as e:
+        return _err(f"job {job_id} not found: {e}", 404)
+
+    task_arn = status.get("task_arn")
+    if not task_arn:
+        return _ok({"lines": [], "note": "no task_arn in status yet"})
+
+    task_id = task_arn.rsplit("/", 1)[-1]
+    # awslogs-stream-prefix=task + container name 'worker' + task id
+    stream = f"task/worker/{task_id}"
+
+    try:
+        resp = logs.get_log_events(
+            logGroupName=WORKER_LOG_GROUP,
+            logStreamName=stream,
+            startFromHead=True,
+            limit=500,
+        )
+        events = [{"t": e["timestamp"], "m": e["message"]} for e in resp.get("events", [])]
+    except logs.exceptions.ResourceNotFoundException:
+        return _ok({"lines": [], "note": "log stream not created yet"})
+    except Exception as e:
+        return _err(f"logs error: {e}", 500)
+    return _ok({"lines": events, "stream": stream})
+
+
+def read_metrics(event):
+    qs = _qs(event)
+    job_id = qs.get("job")
+    if not job_id:
+        return _err("job query param required")
+    prefix = f"jobs/{job_id}/metrics/"
+    out = {}
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+            for obj in page.get("Contents") or []:
+                name = obj["Key"].rsplit("/", 1)[-1]
+                body = s3.get_object(Bucket=BUCKET, Key=obj["Key"])["Body"].read()
+                try:
+                    out[name] = json.loads(body)
+                except Exception:
+                    out[name] = {"_raw": body.decode("utf-8", errors="replace")[:2000]}
+    except Exception as e:
+        return _err(str(e), 500)
+    return _ok(out)
+
+
+def read_chunks(event):
+    """Paginated view of elements/structural/coarse JSONL lines."""
+    qs = _qs(event)
+    job_id = qs.get("job")
+    src = qs.get("src", "coarse")
+    if not job_id:
+        return _err("job query param required")
+    if src not in CHUNK_SOURCES:
+        return _err(f"unknown src; valid: {list(CHUNK_SOURCES)}", 400)
+
+    key = f"jobs/{job_id}/{CHUNK_SOURCES[src]}"
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=key)
+        body = obj["Body"].read().decode("utf-8", errors="replace")
+    except s3.exceptions.NoSuchKey:
+        return _ok({"src": src, "exists": False, "total": 0, "rows": []})
+    except Exception as e:
+        return _err(f"read error: {e}", 500)
+
+    offset = int(qs.get("offset", "0"))
+    limit = min(int(qs.get("limit", "50")), 500)
+    full_id = qs.get("id")
+
+    records = []
+    for line in body.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            records.append(json.loads(line))
+        except Exception:
+            continue
+    total = len(records)
+
+    if full_id is not None:
+        try:
+            want = int(full_id)
+        except ValueError:
+            want = full_id
+        match = next((r for r in records
+                      if r.get("id", r.get("idx")) == want), None)
+        return _ok({"src": src, "record": match})
+
+    slice_ = records[offset:offset + limit]
+    rows = []
+    for r in slice_:
+        text = (r.get("text") or "")
+        row = {
+            "id": r.get("id", r.get("idx")),
+            "n_chars": r.get("n_chars", len(text)),
+            "preview": text.replace("\n", " ")[:160],
+        }
+        if src == "elements":
+            row["type"] = r.get("type")
+            row["page"] = r.get("page")
+            row["heading_level"] = r.get("heading_level")
+        else:
+            row["heading"] = r.get("heading") or r.get("heading_first")
+            row["heading_path"] = r.get("heading_path")
+            row["pages"] = r.get("pages")
+            row["contains_table"] = r.get("contains_table", False)
+        rows.append(row)
+    return _ok({"src": src, "exists": True, "total": total,
+                "offset": offset, "limit": limit, "rows": rows})
+
+
 def download_redirect(event):
     qs = _qs(event)
     job_id = qs.get("job")
@@ -210,6 +342,9 @@ ROUTES = {
     ("GET", "/api/upload-url"):   generate_upload_url,
     ("POST", "/api/run"):         run_task,
     ("GET", "/api/status"):       read_status,
+    ("GET", "/api/log"):          read_log,
+    ("GET", "/api/metrics"):      read_metrics,
+    ("GET", "/api/chunks"):       read_chunks,
     ("GET", "/api/download"):     download_redirect,
 }
 
