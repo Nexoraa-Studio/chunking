@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>SOP chunker (serverless)</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --border:#262b36; --fg:#e5e9f0;
+          --muted:#8b93a7; --accent:#7cc4ff; --ok:#74d39a; --err:#ff6b6b;
+          --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  html,body { margin:0; padding:0; background:var(--bg); color:var(--fg);
+              font:14px/1.5 system-ui, -apple-system, sans-serif; }
+  .wrap { max-width:820px; margin:48px auto; padding:0 20px; }
+  h1 { font-size:19px; margin:0 0 4px 0; letter-spacing:.4px; }
+  .sub { color:var(--muted); font-size:12px; margin-bottom:24px; }
+  .card { background:var(--panel); border:1px solid var(--border);
+          border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  input[type=file] { font:inherit; color:var(--muted); font-family:var(--mono); font-size:12.5px; }
+  button { background:var(--accent); color:#0a0d14; border:none; padding:8px 16px;
+           border-radius:4px; cursor:pointer; font-weight:600; font-size:13px; }
+  button:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; }
+  button:hover:not(:disabled) { filter:brightness(1.1); }
+  .pill { font-family:var(--mono); font-size:11px; padding:2px 8px; border-radius:999px;
+          display:inline-block; text-transform:uppercase; letter-spacing:.6px; }
+  .pill.queued { background:rgba(139,147,167,.18); color:var(--muted); }
+  .pill.starting,.pill.running { background:rgba(255,209,102,.15); color:#ffd166; }
+  .pill.done { background:rgba(116,211,154,.15); color:var(--ok); }
+  .pill.error { background:rgba(255,107,107,.15); color:var(--err); }
+  pre { background:#0b0d12; padding:10px 14px; border-radius:6px;
+        font-family:var(--mono); font-size:12px; line-height:1.5;
+        overflow:auto; max-height:280px; color:var(--fg); }
+  .k { color:var(--muted); font-family:var(--mono); font-size:11.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SOP chunker — serverless</h1>
+  <div class="sub">upload a PDF · Fargate task does the pipeline · download the coarse-DP chunks</div>
+
+  <div class="card">
+    <div class="row">
+      <input type="file" id="pdf" accept="application/pdf"/>
+      <button id="btn-upload">1. Upload</button>
+      <button id="btn-run" disabled>2. Run pipeline</button>
+      <button id="btn-download" disabled>3. Download chunks</button>
+    </div>
+    <div id="msg" class="k" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:8px">
+      <span class="k">job id:</span>
+      <span id="job_id" class="k">—</span>
+      <span class="k">status:</span>
+      <span id="status_pill" class="pill queued">—</span>
+    </div>
+    <pre id="status_body">(no job yet)</pre>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let jobId = null;
+let pollTimer = null;
+
+function setMsg(text, kind) {
+  const el = $("msg");
+  el.textContent = text;
+  el.style.color = kind === "err" ? "var(--err)" :
+                   kind === "ok"  ? "var(--ok)"  : "var(--muted)";
+}
+
+function setStatusPill(status) {
+  const el = $("status_pill");
+  el.className = "pill " + (status || "queued");
+  el.textContent = status || "—";
+}
+
+$("btn-upload").onclick = async () => {
+  const f = $("pdf").files[0];
+  if (!f) { setMsg("pick a PDF first", "err"); return; }
+  setMsg("requesting upload URL…");
+  const r = await fetch(`/api/upload-url?filename=${encodeURIComponent(f.name)}`);
+  const d = await r.json();
+  if (!r.ok) { setMsg("upload-url error: " + JSON.stringify(d), "err"); return; }
+  jobId = d.job_id;
+  $("job_id").textContent = jobId;
+
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(d.upload.fields)) fd.append(k, v);
+  fd.append("Content-Type", "application/pdf");
+  fd.append("file", f);
+  setMsg(`uploading ${(f.size/1024).toFixed(0)} KB directly to S3…`);
+  const s3r = await fetch(d.upload.url, { method: "POST", body: fd });
+  if (!s3r.ok) {
+    const t = await s3r.text();
+    setMsg(`S3 upload failed (${s3r.status}): ${t.slice(0,200)}`, "err");
+    return;
+  }
+  setMsg(`uploaded ${f.name} — click Run to launch the Fargate task`, "ok");
+  $("btn-run").disabled = false;
+  $("btn-download").disabled = true;
+};
+
+$("btn-run").onclick = async () => {
+  if (!jobId) return;
+  setMsg("launching Fargate task…");
+  $("btn-run").disabled = true;
+  const r = await fetch("/api/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId }),
+  });
+  const d = await r.json();
+  if (!r.ok) { setMsg("run error: " + JSON.stringify(d), "err"); return; }
+  setMsg("task queued — cold Fargate boot is ~60–90 s, polling status…");
+  pollStatus();
+};
+
+async function pollStatus() {
+  if (!jobId) return;
+  try {
+    const r = await fetch(`/api/status?job=${jobId}`, { cache: "no-store" });
+    const d = await r.json();
+    $("status_body").textContent = JSON.stringify(d, null, 2);
+    setStatusPill(d.status);
+    if (d.status === "done") {
+      setMsg(`pipeline done in ${d.elapsed_s}s — ${d.n_chunks} chunks`, "ok");
+      $("btn-download").disabled = false;
+      return;
+    }
+    if (d.status === "error") {
+      setMsg("task failed — see status body below", "err");
+      return;
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  pollTimer = setTimeout(pollStatus, 3000);
+}
+
+$("btn-download").onclick = () => {
+  if (!jobId) return;
+  window.location = `/api/download?job=${jobId}`;
+};
+</script>
+</body>
+</html>

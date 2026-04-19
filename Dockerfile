@@ -30,6 +30,7 @@ RUN python -c "from sentence_transformers import SentenceTransformer; \
  && find /root/.cache/huggingface -name "*.log" -delete
 
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 COPY run_pipeline.py .
 
 # Data + logs written at runtime.

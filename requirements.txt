@@ -12,5 +12,6 @@ matplotlib>=3.7.0
 seaborn>=0.13.0
 tqdm>=4.66.0
 pyyaml>=6.0
+boto3>=1.34
 # docling is no longer installed by default. If you want to run the old
 # layout-ML extractor, `pip install docling` manually and set EXTRACTOR=docling.
