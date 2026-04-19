@@ -1,4 +1,4 @@
-docling>=2.0.0
+pymupdf>=1.24
 pypdf>=4.0.0
 pdfplumber>=0.11.0
 sentence-transformers>=2.7.0
@@ -12,3 +12,5 @@ matplotlib>=3.7.0
 seaborn>=0.13.0
 tqdm>=4.66.0
 pyyaml>=6.0
+# docling is no longer installed by default. If you want to run the old
+# layout-ML extractor, `pip install docling` manually and set EXTRACTOR=docling.

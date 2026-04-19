@@ -37,7 +37,14 @@ def run() -> int:
     clear_artifacts()
     print("[run] cleared prior artifacts", flush=True)
 
-    from src.pipeline.extract.docling_extract import main as run_extract
+    import os
+    extractor = os.environ.get("EXTRACTOR", "pymupdf").lower()
+    if extractor == "docling":
+        from src.pipeline.extract.docling_extract import main as run_extract
+        print(f"[run] extractor=docling (EXTRACTOR env var)", flush=True)
+    else:
+        from src.pipeline.extract.pymupdf_extract import main as run_extract
+        print(f"[run] extractor=pymupdf (default)", flush=True)
     from src.pipeline.chunk.structural import main as run_structural
     from src.pipeline.chunk.coarse_dp import main as run_coarse
 

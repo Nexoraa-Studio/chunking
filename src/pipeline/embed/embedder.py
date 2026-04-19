@@ -14,8 +14,15 @@ import numpy as np
 
 
 class Embedder:
-    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    def __init__(self, model_name: str | None = None,
                  cache_dir: Path | None = None):
+        import os
+        # Default: all-MiniLM-L6-v2 (UKP Lab / Microsoft arch, 22M params, 384D).
+        # Swap to any sentence-transformers-compatible model via EMBED_MODEL env.
+        # Suggested US alternative: Snowflake/snowflake-arctic-embed-s.
+        if model_name is None:
+            model_name = os.environ.get(
+                "EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
         from sentence_transformers import SentenceTransformer
         self.model_name = model_name
         self.model = SentenceTransformer(model_name)
