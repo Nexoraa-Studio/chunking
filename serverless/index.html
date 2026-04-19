@@ -200,6 +200,16 @@
     <div class="log" id="log">(no job yet)</div>
   </section>
 
+  <section id="tab-figures" class="tab-panel">
+    <div class="card">
+      <h3>Figures produced by the Fargate task</h3>
+      <p class="k">coarse_similarity.png is the pairwise cosine-similarity heatmap — diagonal is self (1.0); off-diagonal lower = chunks are more distinct. Other figures match the ECS dashboard.</p>
+    </div>
+    <div id="figures" style="display: grid; grid-template-columns: 1fr; gap: 18px;">
+      <div class="k">run a pipeline first…</div>
+    </div>
+  </section>
+
   <section id="tab-about" class="tab-panel">
     <div class="grid-2">
       <div class="card">
@@ -234,6 +244,7 @@ document.querySelectorAll("nav.tabs button").forEach(b => {
     $("tab-" + b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "metrics") fetchMetrics();
     if (b.dataset.tab === "log") pollLog();
+    if (b.dataset.tab === "figures") fetchFigures();
   };
 });
 
@@ -355,7 +366,7 @@ async function pollStatus() {
     if (d.status === "done") {
       setMsg(`pipeline done in ${d.elapsed_s}s — ${d.n_chunks} chunks`, "ok");
       $("btn-download").disabled = false;
-      fetchCounts(); fetchMetrics();
+      fetchCounts(); fetchMetrics(); fetchFigures();
       return;
     }
     if (d.status === "error") {
@@ -398,6 +409,31 @@ async function pollLog() {
   if (s !== "done" && s !== "error") logTimer = setTimeout(pollLog, 3000);
 }
 $("clearLog").onclick = () => { $("log").innerHTML = ""; };
+
+// ---- figures ----
+async function fetchFigures() {
+  const el = $("figures");
+  if (!jobId) { el.innerHTML = '<div class="k">no job yet</div>'; return; }
+  try {
+    const r = await fetch(`/api/figures?job=${jobId}`, { cache: "no-store" });
+    const d = await r.json();
+    const figs = d.figures || [];
+    if (!figs.length) { el.innerHTML = '<div class="k">figures not uploaded yet — wait for pipeline done</div>'; return; }
+    const order = ["coarse_similarity.png", "adjacent_distance.png", "chunk_sizes.png", "umap_chunks.png", "umap_trajectory.png"];
+    figs.sort((a, b) => {
+      const ai = order.indexOf(a.name); const bi = order.indexOf(b.name);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+    el.innerHTML = figs.map(f => `
+      <div style="background:var(--panel); border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+        <div class="k" style="padding:8px 14px; border-bottom:1px solid var(--border);">${f.name} (${(f.size/1024).toFixed(0)} KB)</div>
+        <img src="/api/figure?job=${jobId}&name=${encodeURIComponent(f.name)}&t=${Date.now()}"
+             style="display:block; max-width:100%; height:auto;"
+             onerror="this.parentElement.style.display='none'"/>
+      </div>
+    `).join("");
+  } catch (e) { el.innerHTML = `<div class="k">error: ${e.message}</div>`; }
+}
 
 // ---- metrics ----
 async function fetchMetrics() {

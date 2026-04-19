@@ -41,12 +41,78 @@ def _status_object(bucket: str, job_id: str):
 
 
 def _put_status(s3, bucket: str, job_id: str, state: dict) -> None:
-    body = json.dumps(state, default=str).encode("utf-8")
+    """Merge `state` into the existing status.json so fields Lambda wrote
+    earlier (e.g. task_arn, queued_at) survive the task's own status updates."""
+    prev: dict = {}
+    try:
+        obj = s3.get_object(Bucket=bucket, Key=_status_object(bucket, job_id))
+        prev = json.loads(obj["Body"].read())
+    except Exception:
+        prev = {}
+    merged = {**prev, **state}
+    body = json.dumps(merged, default=str).encode("utf-8")
     s3.put_object(
         Bucket=bucket, Key=_status_object(bucket, job_id),
         Body=body, ContentType="application/json",
         CacheControl="no-store",
     )
+
+
+def _generate_figures_for_job(coarse_path: Path) -> None:
+    """Run the existing viz.main() plus emit a new pairwise-similarity
+    heatmap over coarse chunks (shows how distinct they are)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from src.pipeline.eval.viz import main as run_viz
+    from src.pipeline.utils import paths
+    from src.pipeline.utils.io import read_jsonl
+    from src.pipeline.chunk.sentence_split import split_sentences
+    from src.pipeline.embed.embedder import Embedder
+
+    run_viz()  # chunk_sizes, adjacent_distance, umap_chunks, umap_trajectory
+
+    # Pairwise similarity heatmap for coarse chunks.
+    coarse = list(read_jsonl(coarse_path))
+    if not coarse:
+        return
+    embedder = Embedder(cache_dir=paths.EMBEDDINGS)
+    embs = []
+    labels = []
+    for c in coarse:
+        sents = split_sentences(c["text"]) or [c["text"]]
+        v = embedder.encode(sents).mean(axis=0)
+        n = np.linalg.norm(v)
+        embs.append(v / n if n > 0 else v)
+        h = (c.get("heading_first") or c.get("heading") or "")[:30]
+        labels.append(f"#{c['id']:02d} {h}")
+    embs = np.stack(embs)
+    sim = np.clip(embs @ embs.T, 0.0, 1.0)  # both L2 normalized → sim
+
+    n = len(coarse)
+    fig, ax = plt.subplots(figsize=(max(8, n*0.45), max(7, n*0.4)), dpi=130)
+    im = ax.imshow(sim, cmap="RdYlGn_r", vmin=0.0, vmax=1.0)
+    ax.set_xticks(range(n)); ax.set_yticks(range(n))
+    ax.set_xticklabels([str(i) for i in range(n)], fontsize=8)
+    ax.set_yticklabels(labels, fontsize=8)
+    ax.set_title(f"Coarse chunk pairwise cosine similarity ({n} chunks)\n"
+                 "diagonal = 1.0 (self); off-diagonal: lower = more distinct")
+    fig.colorbar(im, ax=ax, label="cosine similarity")
+    # Annotate cells when small enough to be readable
+    if n <= 24:
+        for i in range(n):
+            for j in range(n):
+                ax.text(j, i, f"{sim[i,j]:.2f}", ha="center", va="center",
+                        fontsize=6,
+                        color="white" if sim[i,j] > 0.6 else "black")
+    fig.tight_layout()
+    out = paths.FIGURES / "coarse_similarity.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, bbox_inches="tight")
+    plt.close(fig)
+    print(f"[task] wrote {out.name} ({n}x{n} heatmap)", flush=True)
 
 
 def _build_zip_from_coarse(coarse_jsonl: Path) -> tuple[bytes, int]:
@@ -162,6 +228,19 @@ def main() -> int:
             for mfile in sorted(paths.METRICS.glob("*.json")):
                 _upload(mfile, f"jobs/{job_id}/metrics/{mfile.name}",
                         "application/json")
+
+        # Generate figures (existing chunk_sizes, adjacent_distance, umap_chunks,
+        # umap_trajectory) plus a new pairwise-similarity heatmap that directly
+        # visualizes how distinct each coarse chunk is from every other.
+        try:
+            print("[task] === figures ===", flush=True)
+            _generate_figures_for_job(coarse_path)
+            if paths.FIGURES.exists():
+                for fig in sorted(paths.FIGURES.glob("*.png")):
+                    _upload(fig, f"jobs/{job_id}/figures/{fig.name}", "image/png")
+        except Exception as e:
+            # viz isn't critical — pipeline already wrote chunks.zip
+            print(f"[task] viz failed (non-fatal): {type(e).__name__}: {e}", flush=True)
 
         state.update({
             "status": "done",

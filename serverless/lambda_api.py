@@ -312,6 +312,44 @@ def read_chunks(event):
                 "offset": offset, "limit": limit, "rows": rows})
 
 
+def list_figures(event):
+    qs = _qs(event)
+    job_id = qs.get("job")
+    if not job_id:
+        return _err("job query param required")
+    prefix = f"jobs/{job_id}/figures/"
+    figs = []
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+            for obj in page.get("Contents") or []:
+                name = obj["Key"].rsplit("/", 1)[-1]
+                figs.append({"name": name, "size": obj["Size"]})
+    except Exception as e:
+        return _err(str(e), 500)
+    return _ok({"figures": figs})
+
+
+def get_figure(event):
+    qs = _qs(event)
+    job_id = qs.get("job")
+    name = qs.get("name", "")
+    if not job_id or not name or "/" in name:
+        return _err("job + safe name required")
+    key = f"jobs/{job_id}/figures/{name}"
+    try:
+        url = s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": BUCKET, "Key": key},
+            ExpiresIn=600,
+        )
+    except Exception as e:
+        return _err(str(e), 500)
+    return {"statusCode": 302,
+            "headers": {"Location": url, "Cache-Control": "no-store"},
+            "body": ""}
+
+
 def download_redirect(event):
     qs = _qs(event)
     job_id = qs.get("job")
@@ -345,6 +383,8 @@ ROUTES = {
     ("GET", "/api/log"):          read_log,
     ("GET", "/api/metrics"):      read_metrics,
     ("GET", "/api/chunks"):       read_chunks,
+    ("GET", "/api/figures"):      list_figures,
+    ("GET", "/api/figure"):       get_figure,
     ("GET", "/api/download"):     download_redirect,
 }
 
